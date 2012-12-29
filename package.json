@@ -1,0 +1,40 @@
+{
+    "name": "multi-cluster",
+    "version": "0.1.0",
+    "description": "Create robust node.js applications with automatic spawning of multiple processesa and multiple apps, signal handling and respawning.",
+    "keywords":[
+        "auto",
+        "multi",
+        "cluster",
+        "spawn",
+        "signals",
+        "sysadmin",
+        "tools",
+        "fault tolerant"
+    ],
+    "author": "Dan Larsen",
+    "maintainers": [{
+                        "name": "Dan Larsen",
+                        "email": "dan@techba.se",
+                        "url": "http://github.com/morphar"
+                    }],
+    "directories": {
+        "lib": "./lib"
+    },
+    "repository": {
+        "type": "git",
+        "url": "http://github.com/morphar/multi-cluster.git"
+    },
+    "bugs": {
+        "mail": "",
+        "url": "http://github.com/morphar/multi-cluster/issues"
+    },
+    "license": {
+        "type": "MIT",
+        "url": "http://github.com/morphar/multi-cluster/blob/master/LICENSE"
+    },
+    "main": "./index",
+    "engines": {
+        "node": ">=0.8.0"
+    }
+}
