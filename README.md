@@ -1,6 +1,6 @@
 # multi-cluster
 
-Create robust node.js applications with automatic spawning of multiple processesa and multiple apps, signal handling and respawning.
+Create robust node.js applications with automatic spawning of multiple processes and multiple apps, signal handling and respawning.
 
 
 ### This is an early BETA version
