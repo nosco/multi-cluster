@@ -17,6 +17,9 @@ Feel free to play around with it, learn from it.
 
 But be warned if you used this on a live system - it hasn't been properly tested yet!
 
+### To install
+
+	npm install multi-cluster
 
 # The thoughts behind
 
