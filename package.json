@@ -25,6 +25,7 @@
         "type": "git",
         "url": "http://github.com/morphar/multi-cluster.git"
     },
+    "github": "http://github.com/morphar/multi-cluster",
     "bugs": {
         "mail": "",
         "url": "http://github.com/morphar/multi-cluster/issues"
