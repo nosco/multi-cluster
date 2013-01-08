@@ -1,6 +1,6 @@
 {
     "name": "multi-cluster",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "Create robust node.js applications with automatic forking of multiple processes and multiple apps, signal handling and reforking.",
     "keywords":[
         "auto",
@@ -20,6 +20,9 @@
                     }],
     "directories": {
         "lib": "./lib"
+    },
+    "dependencies": {
+        "q": ">=0.8.12"
     },
     "repository": {
         "type": "git",

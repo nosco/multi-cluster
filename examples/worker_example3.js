@@ -1,3 +1,5 @@
+var MultiCluster = require('../');
+
 var http = require('http');
 console.log('Hellooo... I\'m da third worker bee.');
 http.createServer(function (req, res) {
