@@ -48,3 +48,19 @@ That's it!
 
 Can it get any simpler?
 
+# Resource usage info
+
+If you want the library to gather information about resource usage, you just need to include the multi-cluster lib for each app, you want info from.
+
+I.e. in myapp.js add this line:
+
+	var MultiCluster = require('multi-cluster');
+	
+Now you can use one of these two (promise):
+
+	MultiCluster.aggregateStats().then(console.log);
+
+Or (callback):
+
+	MultiCluster.aggregateStats(function(stats) { console.log(stats); });
+
