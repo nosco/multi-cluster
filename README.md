@@ -2,6 +2,7 @@
 
 Create robust node.js applications with automatic forking of multiple processes and multiple apps, signal handling and reforking.
 
+All in a couple of line and without changing your existing code!
 
 ### This is an early BETA version
 
@@ -16,6 +17,16 @@ Until then: Feel free to play around with it, learn from it.
 ### To install
 
 	npm install multi-cluster
+
+### Possible pitfall
+
+You can NOT run 2 different applications, that both starts an HTTP (or TCP) server and tries to listen on the same port!!!
+
+This would not fail when trying - just give you some weird results!
+
+The reason for this lies in the node.js cluster handler, which CAN split incoming requests between processes, but can't know, which application should get which requests.
+
+This will of course result in unwanted results, where you will see all requests being handled by one app and suddenly shift to the other app.
 
 # The thoughts behind
 
