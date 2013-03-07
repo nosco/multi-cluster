@@ -52,10 +52,10 @@ That's it!
 
 
 	var MultiCluster = require('multi-cluster');
-	var multiCluster = new MultiCluster('myapp.js');
-	var multiCluster = new MultiCluster('my_second_app.js');
-	var multiCluster = new MultiCluster('my_third_app.js');
-	var multiCluster = new MultiCluster('my_fourth_app.js');
+	var multiCluster1 = new MultiCluster('myapp.js');
+	var multiCluster2 = new MultiCluster('my_second_app.js');
+	var multiCluster3 = new MultiCluster('my_third_app.js');
+	var multiCluster4 = new MultiCluster('my_fourth_app.js');
 
 Can it get any simpler?
 
