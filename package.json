@@ -1,7 +1,7 @@
 {
     "name": "multi-cluster",
-    "version": "0.2.1",
-    "description": "Create robust node.js applications with automatic forking of multiple processes and multiple apps, signal handling and reforking.",
+    "version": "0.2.2",
+    "description": "Create robust node.js applications with automatic forking of multiple processes and multiple apps, signal handling and reforking. All in a couple of line and without changing your existing code!",
     "keywords":[
         "auto",
         "multi",
