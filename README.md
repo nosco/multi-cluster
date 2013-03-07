@@ -28,6 +28,7 @@ The reason for this lies in the node.js cluster handler, which CAN split incomin
 
 This will of course result in unwanted results, where you will see all requests being handled by one app and suddenly shift to the other app.
 
+
 # The thoughts behind
 
 Basically the module will enable you to seperate your app code from cluster and signal handling code.
@@ -58,6 +59,18 @@ That's it!
 	var multiCluster4 = new MultiCluster('my_fourth_app.js');
 
 Can it get any simpler?
+
+
+# Reload on file change
+
+This is a simple implementation for now.
+
+The following will look for file changes in the current working dir and reload the child processes, it will wait up to 5 secs for all connections to close properly. 
+
+	var MultiCluster = require('multi-cluster');
+	var multiCluster = new MultiCluster('myapp.js');
+	multiCluster.watch(__dirname);
+
 
 # Resource usage info
 
