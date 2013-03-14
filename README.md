@@ -2,7 +2,7 @@
 
 Create robust node.js applications with automatic forking of multiple processes and multiple apps, signal handling and reforking.
 
-All in a couple of line and without changing your existing code!
+All in a couple of lines and without changing your existing code!
 
 ### This is an early BETA version
 
@@ -65,7 +65,7 @@ Can it get any simpler?
 
 This is a simple implementation for now.
 
-The following will look for file changes in the current working dir and reload the child processes, it will wait up to 5 secs for all connections to close properly. 
+The following will look for file changes in the current working dir and reload the child processes. It will wait for up to 5 secs, for all connections to close properly. 
 
 	var MultiCluster = require('multi-cluster');
 	var multiCluster = new MultiCluster('myapp.js');
