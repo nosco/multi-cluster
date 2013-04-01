@@ -80,11 +80,7 @@ I.e. in myapp.js add this line:
 
 	var MultiCluster = require('multi-cluster');
 	
-Now you can use one of these two (promise):
-
-	MultiCluster.aggregateStats().then(console.log);
-
-Or (callback):
+Now you access stats like this:
 
 	MultiCluster.aggregateStats(function(stats) { console.log(stats); });
 
