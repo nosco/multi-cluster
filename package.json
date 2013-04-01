@@ -1,44 +1,43 @@
 {
-    "name": "multi-cluster",
-    "version": "0.2.9",
-    "description": "Create robust node.js applications with automatic forking of multiple processes and multiple apps, signal handling and reforking. All in a couple of lines and without changing your existing code!",
-    "keywords":[
-        "auto",
-        "multi",
-        "cluster",
-        "fork",
-        "signals",
-        "sysadmin",
-        "tools",
-        "fault tolerant"
-    ],
-    "author": "Dan Larsen",
-    "maintainers": [{
-                        "name": "Dan Larsen",
-                        "email": "dan@techba.se",
-                        "url": "http://github.com/morphar"
-                    }],
-    "directories": {
-        "lib": "./lib"
-    },
-    "dependencies": {
-        "q": ">=0.8.12"
-    },
-    "repository": {
-        "type": "git",
-        "url": "http://github.com/morphar/multi-cluster.git"
-    },
-    "github": "http://github.com/morphar/multi-cluster",
-    "bugs": {
-        "mail": "",
-        "url": "http://github.com/morphar/multi-cluster/issues"
-    },
-    "license": {
-        "type": "MIT",
-        "url": "http://github.com/morphar/multi-cluster/blob/master/LICENSE"
-    },
-    "main": "./index",
-    "engines": {
-        "node": ">=0.8.0"
-    }
+  "name": "multi-cluster",
+  "version": "0.3.0",
+  "description": "Create robust node.js applications with automatic forking of multiple processes and multiple apps, signal handling and reforking. All in a couple of lines and without changing your existing code!",
+  "keywords":[
+    "auto",
+    "multi",
+    "cluster",
+    "fork",
+    "signals",
+    "sysadmin",
+    "tools",
+    "fault tolerant"
+  ],
+  "author": "Dan Larsen",
+  "maintainers": [{
+    "name": "Dan Larsen",
+    "email": "dan@techba.se",
+    "url": "http://github.com/morphar"
+  }],
+  "directories": {
+    "lib": "./lib"
+  },
+  "dependencies": {
+  },
+  "repository": {
+    "type": "git",
+    "url": "http://github.com/morphar/multi-cluster.git"
+  },
+  "github": "http://github.com/morphar/multi-cluster",
+  "bugs": {
+    "mail": "",
+    "url": "http://github.com/morphar/multi-cluster/issues"
+  },
+  "license": {
+    "type": "MIT",
+    "url": "http://github.com/morphar/multi-cluster/blob/master/LICENSE"
+  },
+  "main": "./index",
+  "engines": {
+    "node": ">=0.8.0"
+  }
 }
