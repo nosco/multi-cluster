@@ -32,10 +32,7 @@
     "mail": "",
     "url": "http://github.com/morphar/multi-cluster/issues"
   },
-  "license": {
-    "type": "MIT",
-    "url": "http://github.com/morphar/multi-cluster/blob/master/LICENSE"
-  },
+  "license": "MIT",
   "main": "./index",
   "engines": {
     "node": ">=0.8.0"
