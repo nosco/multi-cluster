@@ -56,7 +56,9 @@ That's it!
 	var multiCluster1 = new MultiCluster('myapp.js');
 	var multiCluster2 = new MultiCluster('my_second_app.js');
 	var multiCluster3 = new MultiCluster('my_third_app.js');
-	var multiCluster4 = new MultiCluster('my_fourth_app.js');
+
+  // the second argument with a value of 10 is the amount of children to start - default is to start as many children as there is CPUs
+	var multiCluster4 = new MultiCluster('my_fourth_app.js', 10);
 
 Can it get any simpler?
 
@@ -65,7 +67,7 @@ Can it get any simpler?
 
 This is a simple implementation for now.
 
-The following will look for file changes in the current working dir and reload the child processes. It will wait for up to 5 secs, for all connections to close properly. 
+The following will look for file changes in the current working dir and reload the child processes. It will wait for up to 5 secs, for all connections to close properly.
 
 	var MultiCluster = require('multi-cluster');
 	var multiCluster = new MultiCluster('myapp.js');
@@ -79,7 +81,7 @@ If you want the library to gather information about resource usage, you just nee
 I.e. in myapp.js add this line:
 
 	var MultiCluster = require('multi-cluster');
-	
+
 Now you access stats like this:
 
 	MultiCluster.aggregateStats(function(stats) { console.log(stats); });
