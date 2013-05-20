@@ -1,6 +1,6 @@
 {
   "name": "multi-cluster",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "Create robust node.js applications with automatic forking of multiple processes and multiple apps, signal handling and reforking. All in a couple of lines and without changing your existing code!",
   "keywords":[
     "auto",
@@ -18,9 +18,6 @@
     "email": "dan@techba.se",
     "url": "http://github.com/morphar"
   }],
-  "directories": {
-    "lib": "./lib"
-  },
   "repository": {
     "type": "git",
     "url": "http://github.com/morphar/multi-cluster.git"

@@ -1,1 +1,254 @@
-module.exports = require('./lib/multi-cluster.js');
+var os = require('os');
+var fs = require('fs');
+var util = require('util');
+var cluster = require('cluster');
+
+var requestTimer = undefined;
+var workerPidToId = {};
+
+var MultiCluster = function(appPath, childs) {
+  this.watchReloadInProgress = false;
+
+  cluster.setupMaster();
+
+  this.childs = childs || os.cpus().length;
+
+  this.workers = {};
+
+  this.killWait = 5000; // Time in ms to wait before killing child processes that sends a disconnect message
+  this.statsInterval = 2000; // Time in ms between requesting stats from child processes
+
+  this.appPath = String(appPath);
+
+  if(arguments.length < 1) {
+    console.log('No app or app file not provided! Exiting...');
+    process.exit(1);
+  }
+
+  if(!fs.existsSync(this.appPath)) {
+    console.log('error', 'App file "' + this.appPath + '" does not exist! Exiting...');
+    process.exit(1);
+  }
+
+  this.initializeCluster();
+};
+module.exports = MultiCluster;
+
+MultiCluster.prototype.watch = function(watchPath) {
+  var self = this;
+
+  if(!fs.existsSync(watchPath)) {
+    console.log('error', 'The requested path to watch does not exist! Exiting...');
+    process.exit(1);
+  }
+
+  var watchPaths = [];
+
+  if(fs.statSync(watchPath).isDirectory()) {
+    watchPaths = this.getAllDirsSync(watchPath);
+  }
+
+  watchPaths.push(watchPath);
+
+  for(var i in watchPaths) {
+
+    fs.watch(watchPaths[i], function(event, filename) {
+
+      if( (event === 'change') && (self.watchReloadInProgress === false) ) {
+        self.watchReloadInProgress = true;
+
+        for(var id in cluster.workers) {
+          if(self.workers[ cluster.workers[id].process.pid ] != null) {
+            cluster.workers[id].disconnect();
+          }
+        }
+
+        self.watchReloadInProgress = false;
+      }
+
+    });
+
+  }
+
+};
+
+MultiCluster.prototype.getAllDirsSync = function(startPath) {
+  var allDirs = [];
+  var ignorePathsRegex = /^(\.|node_modules|test)/;
+
+  if(startPath !== undefined) {
+    var paths = fs.readdirSync(startPath);
+
+    for(var i in paths) {
+
+      if(ignorePathsRegex.test(paths[i]) === false) {
+        var curPath = startPath + '/' + paths[i];
+
+        if(fs.statSync(curPath).isDirectory()) {
+          allDirs.push(curPath);
+          allDirs = allDirs.concat(this.getAllDirsSync(curPath));
+        }
+      }
+    }
+  }
+  return allDirs;
+};
+
+MultiCluster.prototype.initializeCluster = function() {
+  for(var cpu=1 ; cpu <= this.childs ; cpu++) {
+    this.startWorker();
+  }
+};
+
+var aggregateStats = function(callback) {
+  var masterMem = process.memoryUsage();
+
+  var stats = { all: {}, perApp: {}, aggregated: {} };
+
+  stats.aggregated = {
+    loadavg: os.loadavg(),
+    totalmem: os.totalmem(),
+    freemem: os.freemem(),
+    usedmem: (os.totalmem() - os.freemem()),
+    cpus: os.cpus().length,
+    processes: 1,
+    workers: 0,
+    rss: masterMem.rss,
+    heapTotal: masterMem.heapTotal,
+    heapUsed: masterMem.heapUsed
+  };
+
+  stats.perApp[ process.argv[1] ] = util._extend({ workers: 1}, process.memoryUsage());
+
+  for(var id in cluster.workers) {
+    stats.aggregated.processes++;
+
+    if(cluster.workers[id].stats != undefined) {
+      var workerStats = cluster.workers[id].stats;
+
+      stats.all[workerStats.pid] = workerStats;
+
+      if(stats.perApp[workerStats.filename] == undefined) { stats.perApp[workerStats.filename] = { workers: 0, rss: 0, heapTotal: 0, heapUsed: 0 }; }
+
+      stats.perApp[workerStats.filename].workers++;
+      stats.perApp[workerStats.filename].rss += workerStats.memory.rss;
+      stats.perApp[workerStats.filename].heapTotal += workerStats.memory.heapTotal;
+      stats.perApp[workerStats.filename].heapUsed += workerStats.memory.heapUsed;
+
+      stats.aggregated.workers++;
+      stats.aggregated.rss += workerStats.memory.rss;
+      stats.aggregated.heapTotal += workerStats.memory.heapTotal;
+      stats.aggregated.heapUsed += workerStats.memory.heapUsed;
+    }
+  }
+
+  if(callback != undefined) callback(stats);
+};
+MultiCluster.aggregateStats = aggregateStats;
+
+MultiCluster.prototype.messageHandler = function(msg) {
+  if(msg.cmd && (msg.cmd == 'stats')) {
+    var workerId = workerPidToId[msg.data.pid];
+    cluster.workers[ workerId ].stats = msg.data;
+  }
+};
+
+MultiCluster.prototype.requestStats = function() {
+  for(var id in cluster.workers) {
+    cluster.workers[id].send({ cmd: 'send stats' });
+  }
+};
+
+MultiCluster.prototype.startWorker = function() {
+  var self = this;
+
+  cluster.settings.exec = this.appPath;
+
+  var worker = cluster.fork({ WORKER: 1 });
+
+  this.workers[worker.process.pid] = worker.id;
+  workerPidToId[worker.process.pid] = worker.id;
+
+  worker.on('message', this.messageHandler);
+
+  worker.on('online', function() {
+    if(requestTimer != undefined) { clearInterval(requestTimer); }
+    requestTimer = setInterval(self.requestStats, self.statsInterval);
+  });
+
+  // Make sure the child process don't hang forever in some wait cycle by killing it 5 secs. from now.
+  worker.on('disconnect', function() {
+    delete self.workers[worker.process.pid];
+    delete workerPidToId[worker.process.pid];
+
+    setTimeout(function() {
+      try { process.kill(worker.process.pid); }
+      catch(e) { /* in case it exited by itself */ }
+    }, self.killWait);
+    self.startWorker();
+  });
+
+  // Shouldn't be necessary as disconnect should always be sent
+  //worker.on('exit', function() { });
+  //worker.on('close', function() { });
+};
+
+if(process.env.WORKER && (process.env.WORKER == 1)) {
+  process.on('message', function(msg) {
+    if(msg.cmd && (msg.cmd == 'send stats')) {
+      process.send({ cmd: 'stats', data: { memory: process.memoryUsage(), pid: process.pid, uptime: process.uptime(), filename: process.argv[1] } });
+    }
+  });
+
+} else {
+
+  /* Now going to do all of the main signal handling */
+  var signalHandler = function(signal, args) {
+    // TODO: Implement a way to signal to the child, it should go down when done and then handle it like a disconnect
+    if(signal == 'SIGHUP') {
+      for(var i in cluster.workers) { cluster.workers[i].disconnect(); }
+
+    } else if(signal == 'SIGTERM') {
+      for(var i in cluster.workers) { cluster.workers[i].disconnect(); }
+
+    } else if(signal == 'SIGKILL') {
+      for(var i in cluster.workers) { cluster.workers[i].destroy(); }
+      process.exit(0);
+
+    } else if(signal == 'SIGCHLD') {
+      /* Don't do a thing - the worker.on('disconnect') will handle the restart */
+      //console.log('SIGCHLD');
+
+    } else {
+      console.log('TERMINATING ALL');
+
+      for(var i in cluster.workers) { process.kill(cluster.workers[i].process.pid, 'SIGTERM'); }
+      process.exit(0);
+    }
+  };
+
+  // It seems there is no way of knowing which signal was called, unless
+  // we actually listen to all of them...
+  // This might excessive for most peoples need, but better safe than sorry.
+  // Value      Action   Comment
+  // ----------------------------------------------------------------------
+  process.on('SIGHUP' , function() { signalHandler('SIGHUP' , arguments); });   //     1       Term    Hangup detected on controlling terminal or death of controlling process
+  process.on('SIGINT' , function() { signalHandler('SIGINT' , arguments); });   //     2       Term    Interrupt from keyboard
+  process.on('SIGQUIT', function() { signalHandler('SIGQUIT', arguments); });   //     3       Core    Quit from keyboard
+  process.on('SIGILL' , function() { signalHandler('SIGILL' , arguments); });   //     4       Core    Illegal Instruction
+  process.on('SIGABRT', function() { signalHandler('SIGABRT', arguments); });   //     6       Core    Abort signal from abort(3)
+  process.on('SIGFPE' , function() { signalHandler('SIGFPE' , arguments); });   //     8       Core    Floating point exception
+  //process.on('SIGKILL', function() { signalHandler('SIGKILL', arguments); }); //     9       Term    Kill signal
+  process.on('SIGSEGV', function() { signalHandler('SIGSEGV', arguments); });   //    11       Core    Invalid memory reference
+  process.on('SIGPIPE', function() { signalHandler('SIGPIPE', arguments); });   //    13       Term    Broken pipe: write to pipe with no readers
+  process.on('SIGALRM', function() { signalHandler('SIGALRM', arguments); });   //    14       Term    Timer signal from alarm(2)
+  process.on('SIGTERM', function() { signalHandler('SIGTERM', arguments); });   //    15       Term    Termination signal
+  process.on('SIGUSR1', function() { signalHandler('SIGUSR1', arguments); });   // 30,10,16    Term    User-defined signal 1
+  process.on('SIGUSR2', function() { signalHandler('SIGUSR2', arguments); });   // 31,12,17    Term    User-defined signal 2
+  process.on('SIGCHLD', function() { signalHandler('SIGCHLD', arguments); });   // 20,17,18    Ign     Child stopped or terminated
+  process.on('SIGCONT', function() { signalHandler('SIGCONT', arguments); });   // 19,18,25    Cont    Continue if stopped
+  //process.on('SIGSTOP', function() { signalHandler('SIGSTOP', arguments); }); // 17,19,23    Stop    Stop process
+  process.on('SIGTSTP', function() { signalHandler('SIGTSTP', arguments); });   // 18,20,24    Stop    Stop typed at tty
+  process.on('SIGTTIN', function() { signalHandler('SIGTTIN', arguments); });   // 21,21,26    Stop    tty input for background process
+  process.on('SIGTTOU', function() { signalHandler('SIGTTOU', arguments); });   // 22,22,27    Stop    tty output for background process
+}
