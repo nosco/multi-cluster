@@ -20,11 +20,11 @@
   }],
   "repository": {
     "type": "git",
-    "url": "http://github.com/morphar/multi-cluster.git"
+    "url": "http://github.com/nosco/multi-cluster.git"
   },
-  "github": "http://github.com/morphar/multi-cluster",
+  "github": "http://github.com/nosco/multi-cluster",
   "bugs": {
-    "url": "http://github.com/morphar/multi-cluster/issues"
+    "url": "http://github.com/nosco/multi-cluster/issues"
   },
   "license": "MIT",
   "main": "./index",
