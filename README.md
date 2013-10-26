@@ -1,8 +1,25 @@
+[![NPM version](https://badge.fury.io/js/block-scope.png)](http://badge.fury.io/js/multi-cluster)
+
 # multi-cluster
 
 Create robust node.js applications with automatic forking of multiple processes and multiple apps, signal handling and reforking.
 
 All in a couple of lines and without changing your existing code!
+
+	CAUTION:
+	
+	The watch feature can cause problems under certain versions of node.js.
+	
+	Make sure to test it with the node.js version and the OS you intend to use it under.
+	
+	What to look for when testing:
+	When a file changes, the main process will die and throw this error: Bus error 10
+	
+	Known problem versions are: 0.10.17 - 0.10.20 both included.
+	Version 0.10.21 are known to work.
+	
+	You really shouldn't use watchers on live systems!
+	At least not for systems that has a lot of file updates. 
 
 ### This is an early BETA version
 
@@ -17,6 +34,8 @@ Until then: Feel free to play around with it, learn from it.
 ### To install
 
 	npm install multi-cluster
+
+
 
 ### Possible pitfall
 

@@ -3,10 +3,32 @@ var fs = require('fs');
 var util = require('util');
 var cluster = require('cluster');
 
-var requestTimer = undefined;
+var statsTimer = undefined;
+var statsReportTimer = undefined;
 var workerPidToId = {};
 
-var MultiCluster = function(appPath, childs) {
+/**
+ * childs and usageReport are both optional
+ */
+var MultiCluster = function(appPath, childs, usageReport) {
+  // Time (ms) before killing child processes, that sends a disconnect message
+  this.killWait = 5000;
+  // Time in ms between requesting stats from child processes
+  this.statsInterval = 5000;
+  // Time in ms between reporting stats
+  this.statsReportInterval = 5000;
+  // File watch timer - what is the grace period between first change till next is considered "real"
+  this.watchTimer = 5000;
+
+  usageReport = usageReport || false;
+
+  if(arguments.length === 2) {
+    if(typeof arguments[1] === 'boolean') {
+      usageReport = arguments[1];
+      childs = undefined;
+    }
+  }
+
   this.watchReloadInProgress = false;
 
   cluster.setupMaster();
@@ -14,9 +36,6 @@ var MultiCluster = function(appPath, childs) {
   this.childs = childs || os.cpus().length;
 
   this.workers = {};
-
-  this.killWait = 5000; // Time in ms to wait before killing child processes that sends a disconnect message
-  this.statsInterval = 2000; // Time in ms between requesting stats from child processes
 
   this.appPath = String(appPath);
 
@@ -30,40 +49,122 @@ var MultiCluster = function(appPath, childs) {
     process.exit(1);
   }
 
-  this.initializeCluster();
+  for(var cpu = 1 ; cpu <= this.childs ; cpu++) {
+    this.startWorker();
+  }
+
+  // Start up the stats request timer
+  if(statsTimer == undefined) {
+    statsTimer = setInterval(this.requestStats, this.statsInterval);
+
+    if(usageReport) {
+      setInterval(function() {
+        console.log(util.inspect(MultiCluster.aggregateStats().aggregated, { depth: 10 }));
+      }, this.statsReportInterval);
+    }
+  }
+
+  // We really don't want the main process to go down
+  process.on('uncaughtException', function(err) {
+    console.log('Error from MultiCluster:', err);
+  });
+
 };
 module.exports = MultiCluster;
 
-MultiCluster.prototype.watch = function(watchPath) {
+
+/** Initialize a worker and start listening for events from it */
+MultiCluster.prototype.startWorker = function(gracePeriod) {
   var self = this;
+  gracePeriod = gracePeriod || 2000;
+
+  cluster.settings.exec = this.appPath;
+
+  var worker = cluster.fork({ WORKER: 1 });
+  worker.last_start = new Date().getTime();
+  worker.restart_grace_period = gracePeriod;
+
+  this.workers[worker.process.pid] = worker.id;
+  workerPidToId[worker.process.pid] = worker.id;
+
+  worker.on('disconnect', function() {
+    delete self.workers[worker.process.pid];
+    delete workerPidToId[worker.process.pid];
+
+    setTimeout(function() {
+      if(worker.state !== 'dead') {
+        try { worker.kill(); }
+        catch(e) { /* in case it exited by itself */ }
+      }
+      delete worker;
+    }, self.killWait);
+
+    if(!worker.suicide || worker.restart) {
+      var timeSinceLastStart = (new Date().getTime() - worker.last_start);
+
+      if( timeSinceLastStart  < worker.restart_grace_period ) {
+        worker.restart_grace_period = worker.restart_grace_period * 2;
+        if(worker.restart_grace_period > 30000) {
+          worker.restart_grace_period = 30000;
+        }
+
+        setTimeout(function() { self.startWorker(worker.restart_grace_period); }, worker.restart_grace_period);
+
+      } else {
+        self.startWorker();
+      }
+    }
+  });
+
+  worker.on('message', this.messageHandler);
+};
+
+MultiCluster.prototype.messageHandler = function(msg) {
+  if(msg.cmd && (msg.cmd == 'stats')) {
+    var workerId = workerPidToId[msg.data.pid];
+    cluster.workers[ workerId ].stats = msg.data;
+  }
+};
+
+MultiCluster.prototype.requestStats = function() {
+  for(var id in cluster.workers) {
+    cluster.workers[id].send({ cmd: 'send stats' });
+  }
+};
+
+MultiCluster.prototype.watch = function(watchPath, ignorePathsRegexp) {
+  var self = this;
+
+  ignorePathsRegexp = ignorePathsRegexp || /^(\.|node_modules|test|log)/;
 
   if(!fs.existsSync(watchPath)) {
     console.log('error', 'The requested path to watch does not exist! Exiting...');
     process.exit(1);
   }
 
-  var watchPaths = [];
+  var watchPaths = [watchPath];
 
   if(fs.statSync(watchPath).isDirectory()) {
-    watchPaths = this.getAllDirsSync(watchPath);
+    watchPaths = watchPaths.concat( this.getAllDirsSync(watchPath, ignorePathsRegexp) );
   }
-
-  watchPaths.push(watchPath);
 
   for(var i in watchPaths) {
 
     fs.watch(watchPaths[i], function(event, filename) {
-
       if( (event === 'change') && (self.watchReloadInProgress === false) ) {
         self.watchReloadInProgress = true;
 
-        for(var id in cluster.workers) {
-          if(self.workers[ cluster.workers[id].process.pid ] != null) {
-            cluster.workers[id].disconnect();
+        // Use a timer, to ensure we don't try to startup with a half-written file
+        setTimeout(function() {
+          for(var id in cluster.workers) {
+            if(self.workers[ cluster.workers[id].process.pid ] != null) {
+              cluster.workers[id].restart = true;
+              cluster.workers[id].disconnect();
+            }
           }
-        }
+        }, 1000);
 
-        self.watchReloadInProgress = false;
+        setTimeout(function() { self.watchReloadInProgress = false }, self.watchTimer);
       }
 
     });
@@ -72,21 +173,20 @@ MultiCluster.prototype.watch = function(watchPath) {
 
 };
 
-MultiCluster.prototype.getAllDirsSync = function(startPath) {
+MultiCluster.prototype.getAllDirsSync = function(startPath, ignorePathsRegexp) {
   var allDirs = [];
-  var ignorePathsRegex = /^(\.|node_modules|test)/;
 
   if(startPath !== undefined) {
     var paths = fs.readdirSync(startPath);
 
     for(var i in paths) {
 
-      if(ignorePathsRegex.test(paths[i]) === false) {
+      if(ignorePathsRegexp.test(paths[i]) === false) {
         var curPath = startPath + '/' + paths[i];
 
         if(fs.statSync(curPath).isDirectory()) {
           allDirs.push(curPath);
-          allDirs = allDirs.concat(this.getAllDirsSync(curPath));
+          allDirs = allDirs.concat(this.getAllDirsSync(curPath, ignorePathsRegexp));
         }
       }
     }
@@ -94,11 +194,6 @@ MultiCluster.prototype.getAllDirsSync = function(startPath) {
   return allDirs;
 };
 
-MultiCluster.prototype.initializeCluster = function() {
-  for(var cpu=1 ; cpu <= this.childs ; cpu++) {
-    this.startWorker();
-  }
-};
 
 var aggregateStats = function(callback) {
   var masterMem = process.memoryUsage();
@@ -142,56 +237,14 @@ var aggregateStats = function(callback) {
     }
   }
 
-  if(callback != undefined) callback(stats);
+  if(callback != undefined) {
+    callback(stats);
+  } else {
+    return stats;
+  }
 };
 MultiCluster.aggregateStats = aggregateStats;
 
-MultiCluster.prototype.messageHandler = function(msg) {
-  if(msg.cmd && (msg.cmd == 'stats')) {
-    var workerId = workerPidToId[msg.data.pid];
-    cluster.workers[ workerId ].stats = msg.data;
-  }
-};
-
-MultiCluster.prototype.requestStats = function() {
-  for(var id in cluster.workers) {
-    cluster.workers[id].send({ cmd: 'send stats' });
-  }
-};
-
-MultiCluster.prototype.startWorker = function() {
-  var self = this;
-
-  cluster.settings.exec = this.appPath;
-
-  var worker = cluster.fork({ WORKER: 1 });
-
-  this.workers[worker.process.pid] = worker.id;
-  workerPidToId[worker.process.pid] = worker.id;
-
-  worker.on('message', this.messageHandler);
-
-  worker.on('online', function() {
-    if(requestTimer != undefined) { clearInterval(requestTimer); }
-    requestTimer = setInterval(self.requestStats, self.statsInterval);
-  });
-
-  // Make sure the child process don't hang forever in some wait cycle by killing it 5 secs. from now.
-  worker.on('disconnect', function() {
-    delete self.workers[worker.process.pid];
-    delete workerPidToId[worker.process.pid];
-
-    setTimeout(function() {
-      try { process.kill(worker.process.pid); }
-      catch(e) { /* in case it exited by itself */ }
-    }, self.killWait);
-    self.startWorker();
-  });
-
-  // Shouldn't be necessary as disconnect should always be sent
-  //worker.on('exit', function() { });
-  //worker.on('close', function() { });
-};
 
 if(process.env.WORKER && (process.env.WORKER == 1)) {
   process.on('message', function(msg) {
@@ -202,53 +255,71 @@ if(process.env.WORKER && (process.env.WORKER == 1)) {
 
 } else {
 
-  /* Now going to do all of the main signal handling */
+  /**
+   * Signal handling
+   */
   var signalHandler = function(signal, args) {
-    // TODO: Implement a way to signal to the child, it should go down when done and then handle it like a disconnect
+    console.log('GOT SIGNAL:', signal);
     if(signal == 'SIGHUP') {
       for(var i in cluster.workers) { cluster.workers[i].disconnect(); }
-
-    } else if(signal == 'SIGTERM') {
-      for(var i in cluster.workers) { cluster.workers[i].disconnect(); }
-
-    } else if(signal == 'SIGKILL') {
-      for(var i in cluster.workers) { cluster.workers[i].destroy(); }
-      process.exit(0);
-
-    } else if(signal == 'SIGCHLD') {
-      /* Don't do a thing - the worker.on('disconnect') will handle the restart */
-      //console.log('SIGCHLD');
 
     } else {
       console.log('TERMINATING ALL');
 
-      for(var i in cluster.workers) { process.kill(cluster.workers[i].process.pid, 'SIGTERM'); }
+      for(var i in cluster.workers) { cluster.workers[i].kill(); }
       process.exit(0);
     }
   };
 
-  // It seems there is no way of knowing which signal was called, unless
-  // we actually listen to all of them...
-  // This might excessive for most peoples need, but better safe than sorry.
-  // Value      Action   Comment
-  // ----------------------------------------------------------------------
-  process.on('SIGHUP' , function() { signalHandler('SIGHUP' , arguments); });   //     1       Term    Hangup detected on controlling terminal or death of controlling process
-  process.on('SIGINT' , function() { signalHandler('SIGINT' , arguments); });   //     2       Term    Interrupt from keyboard
-  process.on('SIGQUIT', function() { signalHandler('SIGQUIT', arguments); });   //     3       Core    Quit from keyboard
-  process.on('SIGILL' , function() { signalHandler('SIGILL' , arguments); });   //     4       Core    Illegal Instruction
-  process.on('SIGABRT', function() { signalHandler('SIGABRT', arguments); });   //     6       Core    Abort signal from abort(3)
-  process.on('SIGFPE' , function() { signalHandler('SIGFPE' , arguments); });   //     8       Core    Floating point exception
-  //process.on('SIGKILL', function() { signalHandler('SIGKILL', arguments); }); //     9       Term    Kill signal
-  process.on('SIGSEGV', function() { signalHandler('SIGSEGV', arguments); });   //    11       Core    Invalid memory reference
-  process.on('SIGPIPE', function() { signalHandler('SIGPIPE', arguments); });   //    13       Term    Broken pipe: write to pipe with no readers
-  process.on('SIGALRM', function() { signalHandler('SIGALRM', arguments); });   //    14       Term    Timer signal from alarm(2)
-  process.on('SIGTERM', function() { signalHandler('SIGTERM', arguments); });   //    15       Term    Termination signal
-  process.on('SIGUSR1', function() { signalHandler('SIGUSR1', arguments); });   // 30,10,16    Term    User-defined signal 1
-  process.on('SIGUSR2', function() { signalHandler('SIGUSR2', arguments); });   // 31,12,17    Term    User-defined signal 2
-  process.on('SIGCHLD', function() { signalHandler('SIGCHLD', arguments); });   // 20,17,18    Ign     Child stopped or terminated
-  process.on('SIGCONT', function() { signalHandler('SIGCONT', arguments); });   // 19,18,25    Cont    Continue if stopped
-  //process.on('SIGSTOP', function() { signalHandler('SIGSTOP', arguments); }); // 17,19,23    Stop    Stop process
-  process.on('SIGTSTP', function() { signalHandler('SIGTSTP', arguments); });   // 18,20,24    Stop    Stop typed at tty
-  process.on('SIGTTIN', function() { signalHandler('SIGTTIN', arguments); });   // 21,21,26    Stop    tty input for background process
-  process.on('SIGTTOU', function() { signalHandler('SIGTTOU', arguments); });   // 22,22,27    Stop    tty output for background process
+  process.on('SIGHUP' , function() { signalHandler('SIGHUP' , arguments); });
+  process.on('SIGINT' , function() { signalHandler('SIGINT' , arguments); });
+  process.on('SIGQUIT', function() { signalHandler('SIGQUIT', arguments); });
+  process.on('SIGTERM', function() { signalHandler('SIGTERM', arguments); });
+  // We know this through the disconnect message:
+  // process.on('SIGCHLD', function() { signalHandler('SIGCHLD', arguments); });
 }
+
+
+/**
+ * A description of the signals and their values
+ *
+ * POSIX.1-1990
+ *
+ * Signal       Value    Action   Comment
+ * -----------------------------------------------------
+ * SIGHUP         1       Term    Hangup detected on controlling terminal
+ *                                or death of controlling process
+ * SIGINT         2       Term    Interrupt from keyboard
+ * SIGQUIT        3       Core    Quit from keyboard
+ * SIGILL         4       Core    Illegal Instruction
+ * SIGABRT        6       Core    Abort signal from abort(3)
+ * SIGFPE         8       Core    Floating point exception
+ * SIGKILL        9       Term    Kill signal
+ * SIGSEGV       11       Core    Invalid memory reference
+ * SIGPIPE       13       Term    Broken pipe: write to pipe with no readers
+ * SIGALRM       14       Term    Timer signal from alarm(2)
+ * SIGTERM       15       Term    Termination signal
+ * SIGUSR1    30,10,16    Term    User-defined signal 1
+ * SIGUSR2    31,12,17    Term    User-defined signal 2
+ * SIGCHLD    20,17,18    Ign     Child stopped or terminated
+ * SIGCONT    19,18,25    Cont    Continue if stopped
+ * SIGSTOP    17,19,23    Stop    Stop process
+ * SIGTSTP    18,20,24    Stop    Stop typed at tty
+ * SIGTTIN    21,21,26    Stop    tty input for background process
+ * SIGTTOU    22,22,27    Stop    tty output for background process
+ *
+ *
+ * POSIX.1-2001 (SUSv2)
+ *
+ * Signal      Value     Action   Comment
+ * -------------------------------------------------------------------------
+ * SIGBUS     10,7,10     Core    Bus error (bad memory access)
+ * SIGPOLL                Term    Pollable event (Sys V). Synonym of SIGIO
+ * SIGPROF    27,27,29    Term    Profiling timer expired
+ * SIGSYS     12,-,12     Core    Bad argument to routine (SVr4)
+ * SIGTRAP       5        Core    Trace/breakpoint trap
+ * SIGURG     16,23,21    Ign     Urgent condition on socket (4.2BSD)
+ * SIGVTALRM  26,26,28    Term    Virtual alarm clock (4.2BSD)
+ * SIGXCPU    24,24,30    Core    CPU time limit exceeded (4.2BSD)
+ * SIGXFSZ    25,25,31    Core    File size limit exceeded (4.2BSD)
+ */
