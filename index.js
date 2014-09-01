@@ -19,6 +19,7 @@ var MultiCluster = function(appPath, childs, usageReport) {
   this.statsReportInterval = 5000;
   // File watch timer - the grace period between first change till next, before
   // assuming a restart is necessary
+  // This is important, since it's possible to get 2 events per change
   this.watchTimer = 5000;
   // If the worker was restarted in less than defaultGracePeriod time ago, a
   // slowdown is initiated, making sure we don't wildly restart a faulty worker
