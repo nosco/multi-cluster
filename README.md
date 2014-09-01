@@ -77,7 +77,9 @@ That's it!
 	var multiCluster2 = new MultiCluster('my_second_app.js');
 	var multiCluster3 = new MultiCluster('my_third_app.js');
 
-  // the second argument with a value of 10 is the amount of children to start - default is to start as many children as there is CPUs
+
+	// The second argument with a value of 10 is the amount of children to start
+	// Default is to start as many children as there is CPUs
 	var multiCluster4 = new MultiCluster('my_fourth_app.js', 10);
 
 Can it get any simpler?
