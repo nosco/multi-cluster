@@ -17,8 +17,12 @@ var MultiCluster = function(appPath, childs, usageReport) {
   this.statsInterval = 5000;
   // Time in ms between reporting stats
   this.statsReportInterval = 5000;
-  // File watch timer - what is the grace period between first change till next is considered "real"
+  // File watch timer - the grace period between first change till next, before
+  // assuming a restart is necessary
   this.watchTimer = 5000;
+  // If the worker was restarted in less than defaultGracePeriod time ago, a
+  // slowdown is initiated, making sure we don't wildly restart a faulty worker
+  this.defaultGracePeriod = 2000;
 
   usageReport = usageReport || false;
 
@@ -76,7 +80,7 @@ module.exports = MultiCluster;
 /** Initialize a worker and start listening for events from it */
 MultiCluster.prototype.startWorker = function(gracePeriod) {
   var self = this;
-  gracePeriod = gracePeriod || 2000;
+  gracePeriod = gracePeriod || this.defaultGracePeriod;
 
   cluster.settings.exec = this.appPath;
 
@@ -102,8 +106,11 @@ MultiCluster.prototype.startWorker = function(gracePeriod) {
     if(!worker.suicide || worker.restart) {
       var timeSinceLastStart = (new Date().getTime() - worker.last_start);
 
-      if( timeSinceLastStart  < worker.restart_grace_period ) {
+      // Check if a slowdown of restarts are needed
+      if( timeSinceLastStart < worker.restart_grace_period ) {
         worker.restart_grace_period = worker.restart_grace_period * 2;
+
+        // Make sure we don't wait to long
         if(worker.restart_grace_period > 30000) {
           worker.restart_grace_period = 30000;
         }
@@ -111,6 +118,8 @@ MultiCluster.prototype.startWorker = function(gracePeriod) {
         setTimeout(function() { self.startWorker(worker.restart_grace_period); }, worker.restart_grace_period);
 
       } else {
+        // Reset the grace period
+        worker.restart_grace_period = self.defaultGracePeriod;
         self.startWorker();
       }
     }
