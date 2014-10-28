@@ -55,7 +55,7 @@ var MultiCluster = function(appPath, childs, usageReport) {
   }
 
   for(var cpu = 1 ; cpu <= this.childs ; cpu++) {
-    this.startWorker();
+    this.startWorker(cpu);
   }
 
   // Start up the stats request timer
@@ -79,13 +79,13 @@ module.exports = MultiCluster;
 
 
 /** Initialize a worker and start listening for events from it */
-MultiCluster.prototype.startWorker = function(gracePeriod) {
+MultiCluster.prototype.startWorker = function(workerId, gracePeriod) {
   var self = this;
   gracePeriod = gracePeriod || this.defaultGracePeriod;
 
   cluster.settings.exec = this.appPath;
 
-  var worker = cluster.fork({ WORKER: 1 });
+  var worker = cluster.fork({ WORKER: workerId });
   worker.last_start = new Date().getTime();
   worker.restart_grace_period = gracePeriod;
 
@@ -116,12 +116,12 @@ MultiCluster.prototype.startWorker = function(gracePeriod) {
           worker.restart_grace_period = 30000;
         }
 
-        setTimeout(function() { self.startWorker(worker.restart_grace_period); }, worker.restart_grace_period);
+        setTimeout(function() { self.startWorker(workerId, worker.restart_grace_period); }, worker.restart_grace_period);
 
       } else {
         // Reset the grace period
         worker.restart_grace_period = self.defaultGracePeriod;
-        self.startWorker();
+        self.startWorker(workerId);
       }
     }
   });
