@@ -2,6 +2,8 @@
 
 # multi-cluster
 
+> **NOTICE**: Stats has been removed and can now be found in a seperate module: [stats-server](http://npmjs.org/package/stats-server)
+
 Create robust node.js applications with automatic forking of multiple processes and multiple apps, signal handling and reforking.
 
 All in a couple of lines and without changing your existing code!
@@ -102,8 +104,3 @@ If you want the library to gather information about resource usage, you just nee
 I.e. in myapp.js add this line:
 
 	var MultiCluster = require('multi-cluster');
-
-Now you access stats like this:
-
-	MultiCluster.aggregateStats(function(stats) { console.log(stats); });
-
