@@ -24,20 +24,9 @@ All in a couple of lines and without changing your existing code!
 >You really shouldn't use watchers on live systems!
 >At least not for systems that has a lot of file updates.
 
-### This is an early BETA version
+### Out of BETA
 
-The thoughts and techniques behind this module, has been derived from live systems running incredibly stabile!
-That said, this is not code tested on live systems (yet).
-
-As soon as the module has shown it's worth and stability on a live system, it will be marked as version >= 1.0.0.
-
-Until then: Feel free to play around with it, learn from it.
-
-
-### To install
-
-	npm install multi-cluster
-
+After having run applications in live environments for years, using multi-cluster to make them stabil and multi-core friendly, it should be safe to call this module production ready.
 
 
 ### Possible pitfall
@@ -96,11 +85,3 @@ The following will look for file changes in the current working dir and reload t
 	var multiCluster = new MultiCluster('myapp.js');
 	multiCluster.watch(__dirname);
 
-
-# Resource usage info
-
-If you want the library to gather information about resource usage, you just need to include the multi-cluster lib for each app, you want info from.
-
-I.e. in myapp.js add this line:
-
-	var MultiCluster = require('multi-cluster');
