@@ -85,3 +85,19 @@ The following will look for file changes in the current working dir and reload t
 	var multiCluster = new MultiCluster('myapp.js');
 	multiCluster.watch(__dirname);
 
+# Broadcast to all workers
+
+You can synchronize state between all the workers by broadcasting a message
+to all sibling processes.
+
+```javscript
+// example
+process.on('message', function (msg) {
+  if (msg.broadcast && msg.broadcast == 'sync') {
+    synchronize();
+  }
+});
+if (process.send) process.send({broadcast: 'sync'});
+```
+
+Which would make *all* worker processes call the ``synchronize()`` function.
