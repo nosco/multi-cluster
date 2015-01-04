@@ -134,6 +134,11 @@ MultiCluster.prototype.messageHandler = function(msg) {
     var workerId = workerPidToId[msg.data.pid];
     cluster.workers[ workerId ].stats = msg.data;
   }
+  if (msg.broadcast) {
+    for(var id in cluster.workers) {
+      cluster.workers[id].send(msg);
+    }
+  }
 };
 
 MultiCluster.prototype.requestStats = function() {

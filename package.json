@@ -1,8 +1,8 @@
 {
   "name": "multi-cluster",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Create robust node.js applications with automatic forking of multiple processes and multiple apps, signal handling and reforking. All in a couple of lines and without changing your existing code!",
-  "keywords":[
+  "keywords": [
     "auto",
     "multi",
     "cluster",
@@ -13,11 +13,13 @@
     "fault tolerant"
   ],
   "author": "Dan Larsen",
-  "maintainers": [{
-    "name": "Dan Larsen",
-    "email": "dan@techba.se",
-    "url": "http://github.com/morphar"
-  }],
+  "maintainers": [
+    {
+      "name": "Dan Larsen",
+      "email": "dan@techba.se",
+      "url": "http://github.com/morphar"
+    }
+  ],
   "repository": {
     "type": "git",
     "url": "http://github.com/nosco/multi-cluster.git"
