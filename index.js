@@ -27,8 +27,8 @@ var MultiCluster = function(appPath, childs, usageReport) {
 
   usageReport = usageReport || false;
 
-  if(arguments.length === 2) {
-    if(typeof arguments[1] === 'boolean') {
+  if (arguments.length === 2) {
+    if (typeof arguments[1] === 'boolean') {
       usageReport = arguments[1];
       childs = undefined;
     }
@@ -44,27 +44,29 @@ var MultiCluster = function(appPath, childs, usageReport) {
 
   this.appPath = String(appPath);
 
-  if(arguments.length < 1) {
+  if (arguments.length < 1) {
     console.log('No app or app file not provided! Exiting...');
     process.exit(1);
   }
 
-  if(!fs.existsSync(this.appPath)) {
+  if (!fs.existsSync(this.appPath)) {
     console.log('error', 'App file "' + this.appPath + '" does not exist! Exiting...');
     process.exit(1);
   }
 
-  for(var cpu = 1 ; cpu <= this.childs ; cpu++) {
+  for (var cpu = 1; cpu <= this.childs; cpu++) {
     this.startWorker(cpu);
   }
 
   // Start up the stats request timer
-  if(statsTimer == undefined) {
+  if (statsTimer == undefined) {
     statsTimer = setInterval(this.requestStats, this.statsInterval);
 
-    if(usageReport) {
+    if (usageReport) {
       setInterval(function() {
-        console.log(util.inspect(MultiCluster.aggregateStats().aggregated, { depth: 10 }));
+        console.log(util.inspect(MultiCluster.aggregateStats().aggregated, {
+          depth: 10
+        }));
       }, this.statsReportInterval);
     }
   }
@@ -85,7 +87,9 @@ MultiCluster.prototype.startWorker = function(workerId, gracePeriod) {
 
   cluster.settings.exec = this.appPath;
 
-  var worker = cluster.fork({ WORKER: workerId });
+  var worker = cluster.fork({
+    WORKER: workerId
+  });
   worker.last_start = new Date().getTime();
   worker.restart_grace_period = gracePeriod;
 
@@ -97,26 +101,31 @@ MultiCluster.prototype.startWorker = function(workerId, gracePeriod) {
     delete workerPidToId[worker.process.pid];
 
     setTimeout(function() {
-      if(worker.state !== 'dead') {
-        try { worker.kill(); }
-        catch(e) { /* in case it exited by itself */ }
+      if (worker.state !== 'dead') {
+        try {
+          worker.kill();
+        } catch ( e ) {
+          /* in case it exited by itself */
+        }
       }
       delete worker;
     }, self.killWait);
 
-    if(!worker.suicide || worker.restart) {
+    if (!worker.suicide || worker.restart) {
       var timeSinceLastStart = (new Date().getTime() - worker.last_start);
 
       // Check if a slowdown of restarts are needed
-      if( timeSinceLastStart < worker.restart_grace_period ) {
+      if (timeSinceLastStart < worker.restart_grace_period) {
         worker.restart_grace_period = worker.restart_grace_period * 2;
 
         // Make sure we don't wait to long
-        if(worker.restart_grace_period > 30000) {
+        if (worker.restart_grace_period > 30000) {
           worker.restart_grace_period = 30000;
         }
 
-        setTimeout(function() { self.startWorker(workerId, worker.restart_grace_period); }, worker.restart_grace_period);
+        setTimeout(function() {
+          self.startWorker(workerId, worker.restart_grace_period);
+        }, worker.restart_grace_period);
 
       } else {
         // Reset the grace period
@@ -130,20 +139,22 @@ MultiCluster.prototype.startWorker = function(workerId, gracePeriod) {
 };
 
 MultiCluster.prototype.messageHandler = function(msg) {
-  if(msg.cmd && (msg.cmd == 'stats')) {
+  if (msg.cmd && (msg.cmd == 'stats')) {
     var workerId = workerPidToId[msg.data.pid];
-    cluster.workers[ workerId ].stats = msg.data;
+    cluster.workers[workerId].stats = msg.data;
   }
   if (msg.broadcast) {
-    for(var id in cluster.workers) {
+    for (var id in cluster.workers) {
       cluster.workers[id].send(msg);
     }
   }
 };
 
 MultiCluster.prototype.requestStats = function() {
-  for(var id in cluster.workers) {
-    cluster.workers[id].send({ cmd: 'send stats' });
+  for (var id in cluster.workers) {
+    cluster.workers[id].send({
+      cmd: 'send stats'
+    });
   }
 };
 
@@ -152,34 +163,36 @@ MultiCluster.prototype.watch = function(watchPath, ignorePathsRegexp) {
 
   ignorePathsRegexp = ignorePathsRegexp || /^(\.|node_modules|test|log)/;
 
-  if(!fs.existsSync(watchPath)) {
+  if (!fs.existsSync(watchPath)) {
     console.log('error', 'The requested path to watch does not exist! Exiting...');
     process.exit(1);
   }
 
   var watchPaths = [watchPath];
 
-  if(fs.statSync(watchPath).isDirectory()) {
-    watchPaths = watchPaths.concat( this.getAllDirsSync(watchPath, ignorePathsRegexp) );
+  if (fs.statSync(watchPath).isDirectory()) {
+    watchPaths = watchPaths.concat(this.getAllDirsSync(watchPath, ignorePathsRegexp));
   }
 
-  for(var i in watchPaths) {
+  for (var i in watchPaths) {
 
     fs.watch(watchPaths[i], function(event, filename) {
-      if( (event === 'change') && (self.watchReloadInProgress === false) ) {
+      if ((event === 'change') && (self.watchReloadInProgress === false)) {
         self.watchReloadInProgress = true;
 
         // Use a timer, to ensure we don't try to startup with a half-written file
         setTimeout(function() {
-          for(var id in cluster.workers) {
-            if(self.workers[ cluster.workers[id].process.pid ] != null) {
+          for (var id in cluster.workers) {
+            if (self.workers[cluster.workers[id].process.pid] != null) {
               cluster.workers[id].restart = true;
               cluster.workers[id].disconnect();
             }
           }
         }, 1000);
 
-        setTimeout(function() { self.watchReloadInProgress = false }, self.watchTimer);
+        setTimeout(function() {
+          self.watchReloadInProgress = false
+        }, self.watchTimer);
       }
 
     });
@@ -191,15 +204,15 @@ MultiCluster.prototype.watch = function(watchPath, ignorePathsRegexp) {
 MultiCluster.prototype.getAllDirsSync = function(startPath, ignorePathsRegexp) {
   var allDirs = [];
 
-  if(startPath !== undefined) {
+  if (startPath !== undefined) {
     var paths = fs.readdirSync(startPath);
 
-    for(var i in paths) {
+    for (var i in paths) {
 
-      if(ignorePathsRegexp.test(paths[i]) === false) {
+      if (ignorePathsRegexp.test(paths[i]) === false) {
         var curPath = startPath + '/' + paths[i];
 
-        if(fs.statSync(curPath).isDirectory()) {
+        if (fs.statSync(curPath).isDirectory()) {
           allDirs.push(curPath);
           allDirs = allDirs.concat(this.getAllDirsSync(curPath, ignorePathsRegexp));
         }
@@ -213,7 +226,11 @@ MultiCluster.prototype.getAllDirsSync = function(startPath, ignorePathsRegexp) {
 var aggregateStats = function(callback) {
   var masterMem = process.memoryUsage();
 
-  var stats = { all: {}, perApp: {}, aggregated: {} };
+  var stats = {
+    all: {},
+    perApp: {},
+    aggregated: {}
+  };
 
   stats.aggregated = {
     loadavg: os.loadavg(),
@@ -228,17 +245,26 @@ var aggregateStats = function(callback) {
     heapUsed: masterMem.heapUsed
   };
 
-  stats.perApp[ process.argv[1] ] = util._extend({ workers: 1}, process.memoryUsage());
+  stats.perApp[process.argv[1]] = util._extend({
+    workers: 1
+  }, process.memoryUsage());
 
-  for(var id in cluster.workers) {
+  for (var id in cluster.workers) {
     stats.aggregated.processes++;
 
-    if(cluster.workers[id].stats != undefined) {
+    if (cluster.workers[id].stats != undefined) {
       var workerStats = cluster.workers[id].stats;
 
       stats.all[workerStats.pid] = workerStats;
 
-      if(stats.perApp[workerStats.filename] == undefined) { stats.perApp[workerStats.filename] = { workers: 0, rss: 0, heapTotal: 0, heapUsed: 0 }; }
+      if (stats.perApp[workerStats.filename] == undefined) {
+        stats.perApp[workerStats.filename] = {
+          workers: 0,
+          rss: 0,
+          heapTotal: 0,
+          heapUsed: 0
+        };
+      }
 
       stats.perApp[workerStats.filename].workers++;
       stats.perApp[workerStats.filename].rss += workerStats.memory.rss;
@@ -252,7 +278,7 @@ var aggregateStats = function(callback) {
     }
   }
 
-  if(callback != undefined) {
+  if (callback != undefined) {
     callback(stats);
   } else {
     return stats;
@@ -261,10 +287,18 @@ var aggregateStats = function(callback) {
 MultiCluster.aggregateStats = aggregateStats;
 
 
-if(process.env.WORKER && (process.env.WORKER == 1)) {
+if (process.env.WORKER && (process.env.WORKER == 1)) {
   process.on('message', function(msg) {
-    if(msg.cmd && (msg.cmd == 'send stats')) {
-      process.send({ cmd: 'stats', data: { memory: process.memoryUsage(), pid: process.pid, uptime: process.uptime(), filename: process.argv[1] } });
+    if (msg.cmd && (msg.cmd == 'send stats')) {
+      process.send({
+        cmd: 'stats',
+        data: {
+          memory: process.memoryUsage(),
+          pid: process.pid,
+          uptime: process.uptime(),
+          filename: process.argv[1]
+        }
+      });
     }
   });
 
@@ -275,21 +309,33 @@ if(process.env.WORKER && (process.env.WORKER == 1)) {
    */
   var signalHandler = function(signal, args) {
     console.log('GOT SIGNAL:', signal);
-    if(signal == 'SIGHUP') {
-      for(var i in cluster.workers) { cluster.workers[i].disconnect(); }
+    if (signal == 'SIGHUP') {
+      for (var i in cluster.workers) {
+        cluster.workers[i].disconnect();
+      }
 
     } else {
       console.log('TERMINATING ALL');
 
-      for(var i in cluster.workers) { cluster.workers[i].kill(); }
+      for (var i in cluster.workers) {
+        cluster.workers[i].kill();
+      }
       process.exit(0);
     }
   };
 
-  process.on('SIGHUP' , function() { signalHandler('SIGHUP' , arguments); });
-  process.on('SIGINT' , function() { signalHandler('SIGINT' , arguments); });
-  process.on('SIGQUIT', function() { signalHandler('SIGQUIT', arguments); });
-  process.on('SIGTERM', function() { signalHandler('SIGTERM', arguments); });
+  process.on('SIGHUP', function() {
+    signalHandler('SIGHUP', arguments);
+  });
+  process.on('SIGINT', function() {
+    signalHandler('SIGINT', arguments);
+  });
+  process.on('SIGQUIT', function() {
+    signalHandler('SIGQUIT', arguments);
+  });
+  process.on('SIGTERM', function() {
+    signalHandler('SIGTERM', arguments);
+  });
   // We know this through the disconnect message:
   // process.on('SIGCHLD', function() { signalHandler('SIGCHLD', arguments); });
 }
