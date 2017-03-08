@@ -124,8 +124,8 @@ MultiCluster.prototype.startWorker = function(workerId, gracePeriod) {
         }
 
         setTimeout(function() {
-          self.startWorker(workerId, worker.restart_grace_period);
-        }, worker.restart_grace_period);
+          self.startWorker(workerId, gracePeriod);
+        }, gracePeriod);
 
       } else {
         // Reset the grace period
